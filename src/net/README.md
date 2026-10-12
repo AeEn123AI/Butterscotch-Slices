@@ -2,6 +2,8 @@
 
 > **Butterscotch Slices** is a fork of [Butterscotch](https://github.com/ButterscotchRunner/Butterscotch). Its purpose is
 > to let several people play one GameMaker game session over the network; this document describes that feature.
+>
+> **AI-generated:** this feature was written by an AI (Claude); new commits may not have been verified by a human.
 
 Butterscotch can run a game as a **server** that executes all game logic and any number of **clients** that only render,
 play sound and send input. Several people can play the same game session: every client's keyboard / mouse / gamepad is

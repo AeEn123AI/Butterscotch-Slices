@@ -10,6 +10,11 @@
 > audio and send their input back over the network, with no audio/video streaming. A launcher (start with no arguments) lists
 > your games and lets you host or join. See [src/net/README.md](src/net/README.md). Everything else is upstream Butterscotch.
 
+> [!WARNING]
+> **AI-generated code.** The changes in this fork (the networking, launcher, tests and docs) were written by an AI
+> (Claude). It was tested automatically (see `tests/net/`), but **new commits may not have been reviewed or verified by a
+> human**. Review it yourself before relying on it, especially before exposing a server to untrusted networks.
+
 <!-- Badges, about the GitHub repository itself -->
 <p align="center">
 <a href="https://github.com/ButterscotchRunner/CompatibilityList"><img src="https://img.shields.io/badge/butterscotch-compatibility_list-green"></a>
