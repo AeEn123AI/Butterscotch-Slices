@@ -67,6 +67,39 @@ calls cross the network (about 1-10 KB/s per player), never video or audio. Star
 launcher (auto-detects your games, or type a path), or use `--server <data.win>` / `--connect <host[:port]>`.
 See [src/net/README.md](src/net/README.md) for details.
 
+## Running a hardened dedicated server (Docker)
+
+If you want to host for friends without exposing your own machine, run the server in a locked-down container. Players only
+need the normal client; they don't need a VPN. The provided `Dockerfile` and `docker-compose.yml` set it up:
+
+* runs as an unprivileged user (uid 10001), all Linux capabilities dropped, `no-new-privileges`
+* read-only root filesystem; the game folder is mounted read-only and the only writable place is a `/saves` volume
+* small `/tmp` (`noexec`), memory / CPU / process limits, at most 8 clients, a lag watchdog that kicks stalled clients
+* no host networking, so a compromised server can't reach your LAN services directly
+
+```
+git clone https://github.com/AeEn123AI/Butterscotch-Slices && cd Butterscotch-Slices
+mkdir game && cp -r /path/to/your/game/* game/      # the folder that contains data.win
+docker compose up --build                           # Ctrl+C or `docker compose down` when you're done playing
+```
+
+Then forward **TCP 7777** on your router to the machine (or change the left-hand port in `docker-compose.yml`), and tell
+your friends to *Join* `your-public-address:7777`. Extra server options (`--seed`, `--net-max-lag`, `--max-clients`, ...) go
+in the `command:` line. Without Compose:
+
+```
+docker build -t butterscotch-slices .
+docker run --rm --name bs --read-only --tmpfs /tmp:size=16m,noexec,nosuid,nodev --cap-drop ALL \
+  --security-opt no-new-privileges --pids-limit 128 --memory 1g --cpus 1 \
+  -p 7777:7777 -v "$PWD/game:/game:ro" -v bs-saves:/saves butterscotch-slices --max-clients 8
+```
+
+Good habits: only run it while you're playing, share the address with people you trust, and keep Docker updated. The
+protocol has **no encryption or authentication** (anyone who can reach the port can join), and a container is a strong
+barrier but not a guarantee, so this reduces the risk rather than removing it. The files were checked here by running the
+server with the same restrictions (read-only root, no capabilities, empty environment) in a `bwrap` sandbox with a client
+connected; **the image itself was not built or run with Docker in this environment.**
+
 ## Supported Platforms
 
 * Windows

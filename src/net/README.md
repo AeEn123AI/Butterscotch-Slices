@@ -121,6 +121,8 @@ blend/alpha/shader state, the currently playing sounds with their positions) and
 connected client** (the server asks it in-band, so the snapshot matches the stream position exactly while the joiner's
 frames are buffered). Not restored: pixels of sprites created with `sprite_create_from_surface()` before the join.
 
+A hardened Docker setup for a dedicated server is described in the [main README](../../README.md#running-a-hardened-dedicated-server-docker).
+
 ## Limitations
 * `surface_getpixel`, `buffer_get_surface` and other GPU read-backs return failure on the server (it has no GPU).
 * With `application_surface_enable(false)` the game draws straight into the window, which only matches the first client's

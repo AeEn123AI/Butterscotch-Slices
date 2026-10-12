@@ -1,0 +1,27 @@
+# Hardened Butterscotch Slices server.
+#   1. Put your game folder (containing data.win) at ./game  (or change the volume below).
+#   2. docker compose up --build        (stop it with Ctrl+C / `docker compose down` when you're done playing)
+# Players then connect to <your public address>:7777 (forward TCP 7777 on your router to this machine).
+services:
+  server:
+    build: .
+    image: butterscotch-slices
+    restart: "no"
+    ports:
+      - "7777:7777/tcp"          # change the left number to use a different public port
+    volumes:
+      - ./game:/game:ro          # the game files, read-only
+      - saves:/saves             # the only writable place
+    read_only: true              # the container's filesystem is read-only
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 1.0
+    command: ["--max-clients", "8"]   # add e.g. "--net-max-lag", "3000" or "--seed", "1" here
+volumes:
+  saves:
