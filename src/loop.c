@@ -242,7 +242,7 @@ static void installGLDebugCallback(void) {
 
 // Resolves the window size for the specified operating system.
 // The "--window-size" argument takes precedence over the default resolution for each platform.
-static void resolveWindowSize(const CommandLineArgs* args, uint32_t gen8Width, uint32_t gen8Height, int32_t* outW, int32_t* outH) {
+void loopResolveWindowSize(const CommandLineArgs* args, uint32_t gen8Width, uint32_t gen8Height, int32_t* outW, int32_t* outH) {
     if (args->windowWidth > 0 && args->windowHeight > 0) {
         *outW = args->windowWidth;
         *outH = args->windowHeight;
@@ -306,7 +306,7 @@ char** extractRunnerArguments(char* rawArguments) {
     return array;
 }
 
-static char* buildGameChangeTargetPath(const char* currentDataWinPath, const char* workingDirectory, const char* dataWinFilename) {
+char* loopBuildGameChangeTargetPath(const char* currentDataWinPath, const char* workingDirectory, const char* dataWinFilename) {
     if (dataWinFilename == nullptr || dataWinFilename[0] == '\0') {
         return nullptr;
     }
@@ -511,6 +511,130 @@ char* collapseNewlines(const char *input) {
 static void PreProcessedStuff_free(void) {
 #ifdef PLATFORM_VITA
     VitaTextures_Free();
+#endif
+}
+
+Renderer* loopCreateRenderer(const CommandLineArgs* args) {
+    Renderer* renderer = nullptr;
+#ifdef ENABLE_SW_RENDERER
+    if (gfx == SOFTWARE)
+        renderer = SWRenderer_create();
+#endif
+#ifdef ENABLE_NOOP_RENDERER
+    if (gfx == NOOP) {
+        renderer = NoopRenderer_create();
+    }
+#endif
+#ifdef ENABLE_LEGACY_GL
+    if (gfx == LEGACY_GL) {
+        renderer = GLLegacyRenderer_create();
+        static GLuint hostfb = 0;
+        hostFramebuffer = &hostfb;
+    }
+#endif
+#ifdef ENABLE_MODERN_GL
+    if (gfx == MODERN_GL) {
+        renderer = GLRenderer_create();
+        hostFramebuffer = &((GLModernRenderer *)renderer)->hostFramebuffer;
+    }
+#endif
+    if (!renderer) {
+        logError("Failed to initialize a renderer\n");
+        return nullptr;
+    }
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+    if (gfx == LEGACY_GL || gfx == MODERN_GL) {
+        switch (args->glTextureFormat) {
+            case GL_TEXTURE_FORMAT_RGBA4:
+                ((GLRenderer*)renderer)->textureFormat = GL_RGBA4;
+                break;
+            case GL_TEXTURE_FORMAT_RGBA:
+                ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
+                break;
+            case GL_TEXTURE_FORMAT_COMPRESSED_RGBA:
+#ifdef GL_COMPRESSED_RGBA
+                ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
+                break;
+#else
+                logError("Compressed textures are unavailable in this build\n");
+                renderer->vtable->destroy(renderer);
+                return nullptr;
+#endif
+            default:
+                abort();
+        }
+        switch (args->glSurfaceFormat) {
+            case GL_SURFACE_FORMAT_RGBA4:
+                ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA4;
+                break;
+            case GL_SURFACE_FORMAT_RGBA:
+                ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
+                break;
+            default:
+                abort();
+        }
+    }
+#else
+    (void) args;
+#endif
+    return renderer;
+}
+
+// Eagerly uploads every texture page (unless --lazy-textures)
+void loopPreloadTextures(Renderer* renderer, DataWin* dataWin, const CommandLineArgs* args) {
+    if (args->lazyTextures) return;
+    repeat(dataWin->txtr.count, i) {
+#ifdef ENABLE_MODERN_GL
+        if (gfx == MODERN_GL)
+            GLRenderer_ensureTextureLoaded((GLRenderer*) renderer, (int32_t) i);
+#endif
+#ifdef ENABLE_LEGACY_GL
+        if (gfx == LEGACY_GL)
+            GLLegacyRenderer_ensureTextureLoaded((GLRenderer*) renderer, (int32_t) i);
+#endif
+    }
+    (void) renderer;
+}
+
+// Binds and clears the window's framebuffer (start of a frame)
+void loopClearHostFramebuffer(void) {
+#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
+    if (gfx == LEGACY_GL || gfx == MODERN_GL) {
+        glBindFramebuffer(GL_FRAMEBUFFER, *hostFramebuffer);
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
+#endif
+}
+
+// Sets up the GL loader / debug callback once platformInit() created the window
+bool loopInitGraphicsContext(void) {
+#ifdef USE_GLAD
+#if defined(USE_GLFW3) || defined(USE_GLFW2)
+    if (gfx == LEGACY_GL || gfx == MODERN_GL || gfx == SOFTWARE) {
+#else
+    if (gfx == LEGACY_GL || gfx == MODERN_GL) {
+#endif
+        if (!platformInitGlad()) {
+            logError("Failed to initialize GLAD\n");
+            return false;
+        }
+    }
+#ifdef USE_OPENGL_DEBUG
+    if (gfx == MODERN_GL)
+        installGLDebugCallback();
+#endif
+#endif
+    return true;
+}
+
+bool loopCaptureScreenshot(const char* pattern, int frame, int width, int height) {
+#ifdef ENABLE_SCREENSHOTS
+    captureScreenshot(0, pattern, frame, width, height, true);
+    glBindFramebuffer(GL_FRAMEBUFFER, *hostFramebuffer);
+    return true;
+#else
+    (void) pattern; (void) frame; (void) width; (void) height;
+    return false;
 #endif
 }
 
@@ -852,7 +976,7 @@ int loop(CommandLineArgs args, const char *argv0) {
 
 
         int32_t windowW, windowH;
-        resolveWindowSize(&args, gen8->defaultWindowWidth, gen8->defaultWindowHeight, &windowW, &windowH);
+        loopResolveWindowSize(&args, gen8->defaultWindowWidth, gen8->defaultWindowHeight, &windowW, &windowH);
 
         if (!platformInitialized) {
             if (!platformInit(windowW, windowH, windowTitle, args.headless)) {
@@ -893,71 +1017,13 @@ int loop(CommandLineArgs args, const char *argv0) {
         // Initialize the renderer
         // NOTE: headless mode keeps rendering active (hidden window + normal renderer).
         // NOOP is a separate renderer that stubs all draw calls.
-        Renderer* renderer = nullptr;
-#ifdef ENABLE_SW_RENDERER
-        if (gfx == SOFTWARE)
-            renderer = SWRenderer_create();
-#endif
-#ifdef ENABLE_NOOP_RENDERER
-        if (gfx == NOOP) {
-            renderer = NoopRenderer_create();
-        }
-#endif
-#ifdef ENABLE_LEGACY_GL
-        if (gfx == LEGACY_GL) {
-            renderer = GLLegacyRenderer_create();
-            static GLuint hostfb = 0;
-            hostFramebuffer = &hostfb;
-        }
-#endif
-#ifdef ENABLE_MODERN_GL
-        if (gfx == MODERN_GL) {
-            renderer = GLRenderer_create();
-            hostFramebuffer = &((GLModernRenderer *)renderer)->hostFramebuffer;
-        }
-#endif
+        Renderer* renderer = loopCreateRenderer(&args);
         if (!renderer) {
-            logError("Failed to initialize a renderer\n");
             platformExit();
             DataWin_free(dataWin);
             PreProcessedStuff_free();
             return 1;
         }
-#if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
-        if (gfx == LEGACY_GL || gfx == MODERN_GL) {
-            switch (args.glTextureFormat) {
-                case GL_TEXTURE_FORMAT_RGBA4:
-                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA4;
-                    break;
-                case GL_TEXTURE_FORMAT_RGBA:
-                    ((GLRenderer*)renderer)->textureFormat = GL_RGBA;
-                    break;
-                case GL_TEXTURE_FORMAT_COMPRESSED_RGBA:
-#ifdef GL_COMPRESSED_RGBA
-                    ((GLRenderer*)renderer)->textureFormat = GL_COMPRESSED_RGBA;
-                    break;
-#else
-                    logError("Compressed textures are unavailable in this build\n");
-                    platformExit();
-                    DataWin_free(dataWin);
-                    PreProcessedStuff_free();
-                    return 1;
-#endif
-                default:
-                    abort();
-            }
-            switch (args.glSurfaceFormat) {
-                case GL_SURFACE_FORMAT_RGBA4:
-                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA4;
-                    break;
-                case GL_SURFACE_FORMAT_RGBA:
-                    ((GLRenderer*)renderer)->surfaceFormat = GL_RGBA;
-                    break;
-                default:
-                    abort();
-            }
-        }
-#endif
 
         // Initialize the audio system
         AudioSystem* audioSystem = nullptr;
@@ -976,19 +1042,7 @@ int loop(CommandLineArgs args, const char *argv0) {
         // Initialize the runner
         Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem, args.seed);
 
-        if (!args.lazyTextures) {
-            repeat(runner->dataWin->txtr.count, i) {
-#ifdef ENABLE_MODERN_GL
-                if (gfx == MODERN_GL)
-                    GLRenderer_ensureTextureLoaded((GLRenderer*) renderer, (int32_t) i);
-#endif
-
-#ifdef ENABLE_LEGACY_GL
-                if (gfx == LEGACY_GL)
-                    GLLegacyRenderer_ensureTextureLoaded((GLRenderer*) renderer, (int32_t) i);
-#endif
-            }
-        }
+        loopPreloadTextures(renderer, runner->dataWin, &args);
         runner->debugMode = args.debug;
         runner->osType = args.osType;
         runner->setWindowSize = platformSetWindowSize;
@@ -1570,7 +1624,7 @@ int loop(CommandLineArgs args, const char *argv0) {
                 return 1;
             }
 
-            char* newPath = buildGameChangeTargetPath(currentDataWinPath, nextWorkingDirectory, dataWinFilename);
+            char* newPath = loopBuildGameChangeTargetPath(currentDataWinPath, nextWorkingDirectory, dataWinFilename);
             if (newPath == nullptr) {
                 logError("Runner: Failed to build target path for game_change! Shutting down...\n");
                 free(nextWorkingDirectory);

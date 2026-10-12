@@ -40,6 +40,8 @@ typedef struct {
     AudioSystem base;
     ma_engine engine;
     ma_device device;
+    ma_context context;
+    bool hasContext;
     SoundInstance instances[MAX_SOUND_INSTANCES];
     int32_t nextInstanceCounter;
     FileSystem* fileSystem;
@@ -47,6 +49,11 @@ typedef struct {
     ma_sound_group listenerGroups[MAX_LISTENERS];
     float listenerGains[MAX_LISTENERS];
 } MaAudioSystem;
+
+// When set, audio systems created afterwards run on miniaudio's null backend: all mixing, timing, decoding and playback
+// bookkeeping happens exactly as with a real device, but nothing is audible. Used by the network server so that
+// audio_is_playing() / audio_sound_get_track_position() etc. stay accurate without an audio device.
+extern bool gMaAudioNullDevice;
 
 MaAudioSystem* MaAudioSystem_create(DataWin* dataWin);
 

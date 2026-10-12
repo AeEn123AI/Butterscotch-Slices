@@ -33,6 +33,7 @@ void RunnerKeyboard_free(RunnerKeyboardState* kb) {
 void RunnerKeyboard_beginFrame(RunnerKeyboardState* kb) {
     memset(kb->keyPressed, 0, sizeof(kb->keyPressed));
     memset(kb->keyReleased, 0, sizeof(kb->keyReleased));
+    kb->charQueueLen = 0;
 }
 
 void RunnerKeyboard_onKeyDown(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
@@ -51,6 +52,7 @@ void RunnerKeyboard_onKeyUp(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
 }
 
 void RunnerKeyboard_onCharacter(RunnerKeyboardState* kb, unsigned int character) {
+    if (kb->charQueueLen < 32) kb->charQueue[kb->charQueueLen++] = character;
     kb->lastChar[0] = (character >= ' ' && character <= '~') ? (char) character : 0;
     if (character == 8) {
         if (kb->stringLen > 0) {

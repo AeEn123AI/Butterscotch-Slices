@@ -2380,7 +2380,7 @@ static void flattenCollisionEvents(Runner* runner) {
             depth++;
         }
 
-        qsort(dst->events, dst->eventCount, sizeof(FlattenedCollisionEvent), compareTargetObjectIndexAscending);
+        if (dst->eventCount > 1) qsort(dst->events, dst->eventCount, sizeof(FlattenedCollisionEvent), compareTargetObjectIndexAscending);
     }
 }
 

@@ -485,6 +485,9 @@ static void glDrawVertex(Renderer* renderer, float x, float y, float z, uint32_t
         gl->currentPrimitive.vertexCount = 0;
     }
 
+    // vertexData is a fixed-size buffer: extra vertices of an oversized primitive are dropped instead of overflowing it
+    if (gl->currentPrimitive.vertexCount >= MAX_QUADS * VERTICES_PER_QUAD) return;
+
     GLCommon_drawVertex(
         gl,
         x, y, z,

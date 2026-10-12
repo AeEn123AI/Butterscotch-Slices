@@ -69,6 +69,14 @@ typedef struct {
 #define ENABLE_SCREENSHOTS
 #endif
 
+#ifdef ENABLE_NETPLAY
+enum NetMode {
+    NET_MODE_STANDALONE = 0,
+    NET_MODE_SERVER,
+    NET_MODE_CLIENT
+};
+#endif
+
 typedef struct {
     const char* dataWinPath;
     const char* saveFolder; // null = default to the directory containing dataWinPath
@@ -135,6 +143,28 @@ typedef struct {
 #if defined(ENABLE_LEGACY_GL) || defined(ENABLE_MODERN_GL)
     enum GlTextureFormat glTextureFormat;
     enum GlSurfaceFormat glSurfaceFormat;
+#endif
+#ifdef ENABLE_NETPLAY
+    // Client / server mode (see src/net/)
+    enum NetMode netMode;
+    const char* netConnect;   // client: "host[:port]"
+    int netPort;              // server: port to listen on (0 = pick a free one)
+    bool netPortSet;
+    const char* netBind;      // server: address to bind (null = all interfaces)
+    const char* netName;      // client: player name
+    int netMaxClients;
+    bool netRunWhenEmpty;     // server: keep simulating while nobody is connected
+    const char* netPortFile;  // server: write the bound port here once listening (for scripts / tests)
+    int netSimLatencyMs;      // simulated one-way latency added to everything this endpoint sends
+    int netSimJitterMs;
+    int netSimBandwidthKbps;
+    int netMaxLagMs;          // server: cut off clients that fall this far behind (0 = never)
+    bool netMaxLagSet;
+#ifdef ENABLE_NET_FUZZ
+    const char* netFuzzCorpus;
+    int netFuzzIterations;
+    int netFuzzSeed;
+#endif
 #endif
 } CommandLineArgs;
 

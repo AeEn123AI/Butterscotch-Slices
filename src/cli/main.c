@@ -1,6 +1,11 @@
 #include "args.h"
 #include <loop.h>
 #include <getopt.h>
+#ifdef ENABLE_NETPLAY
+#include "net_server.h"
+#include "net_client.h"
+#include "launcher.h"
+#endif
 
 /* For SDL_main */
 #if defined(USE_SDL1)
@@ -44,9 +49,37 @@ void platformLog(const logType type, const char *format, va_list va) {
 int main(int argc, char* argv[]) {
     setbuf(stderr, NULL);
 
+#ifdef ENABLE_NETPLAY
+    // Double-clicked / started without any arguments: show the launcher
+    if (argc == 1) {
+        logColour = true;
+        return launcherMain(argv[0]);
+    }
+#endif
+
     CommandLineArgs args;
     parseCommandLineArgs(&args, argc, argv);
     logColour = !args.disableLogColours;
+#ifdef ENABLE_NETPLAY
+    if (args.netMode != NET_MODE_STANDALONE) setvbuf(stdout, NULL, _IOLBF, 0); // keep server / client logs readable when redirected to a file
+#ifdef ENABLE_NET_FUZZ
+    if (args.netFuzzCorpus != nullptr) {
+        int ret = NetClient_fuzz(args, args.netFuzzCorpus, args.netFuzzIterations > 0 ? args.netFuzzIterations : 10000, (unsigned) args.netFuzzSeed);
+        freeCommandLineArgs(&args);
+        return ret;
+    }
+#endif
+    if (args.netMode == NET_MODE_SERVER) {
+        int ret = NetServer_run(args, argv[0]);
+        freeCommandLineArgs(&args);
+        return ret;
+    }
+    if (args.netMode == NET_MODE_CLIENT) {
+        int ret = NetClient_run(args, argv[0]);
+        freeCommandLineArgs(&args);
+        return ret;
+    }
+#endif
     int ret = loop(args, argv[0]);
     freeCommandLineArgs(&args);
     return ret;

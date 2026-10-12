@@ -263,6 +263,14 @@ static int nsKeyToGML(unsigned short keyCode)
 
 - (void)keyDown:(NSEvent *)event {
     RunnerKeyboard_onKeyDown(g_runner->keyboard, nsKeyToGML(event.keyCode));
+
+    // Text input (keyboard_string, the launcher's text fields). Function / arrow keys arrive as private-use characters.
+    NSString *chars = event.characters;
+    for (NSUInteger i = 0; i < chars.length; i++) {
+        unichar ch = [chars characterAtIndex:i];
+        if (ch < 32 || ch == 127 || (ch >= 0xF700 && ch <= 0xF8FF) || (ch >= 0xD800 && ch <= 0xDFFF)) continue;
+        RunnerKeyboard_onCharacter(g_runner->keyboard, (unsigned int) ch);
+    }
 }
 - (void)keyUp:(NSEvent *)event {
     RunnerKeyboard_onKeyUp(g_runner->keyboard, nsKeyToGML(event.keyCode));

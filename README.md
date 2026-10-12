@@ -2,7 +2,13 @@
 <img width="256" height="256" alt="Butterscotch Logo" src="https://github.com/user-attachments/assets/ef8bdd5c-d407-4b3c-a4d5-07b25e8bbc70" />
 </div>
 
-<h1 align="center">🥧 Butterscotch 🥧</h1>
+<h1 align="center">🥧 Butterscotch Slices 🥧</h1>
+
+> [!NOTE]
+> **Butterscotch Slices is a fork of [Butterscotch](https://github.com/ButterscotchRunner/Butterscotch)** (the GameMaker runner by ButterscotchRunner), not the upstream project.
+> Its purpose is to add **multiplayer**: one machine (the server) runs the game, and any number of clients render it, play the
+> audio and send their input back over the network, with no audio/video streaming. A launcher (start with no arguments) lists
+> your games and lets you host or join. See [src/net/README.md](src/net/README.md). Everything else is upstream Butterscotch.
 
 <!-- Badges, about the GitHub repository itself -->
 <p align="center">
@@ -47,6 +53,14 @@ Of course, some games won't run! Some games aren't VM compiled, such as:
 * Games compiled with YYC, because they use native code instead of bytecode. (Ex: Forager, Rivals of Aether)
 * Games compiled with the new [GMRT](https://github.com/YoYoGames/GMRT-Beta/tree/main), because they use native code instead of bytecode.
 * Games before GameMaker: Studio 1.0.198 (pre-WAD version 8) because they use raw GML code interpreted on load.
+
+## Multiplayer (client / server)
+
+Butterscotch can host a game on one machine and let any number of other machines play it: the **server** runs all of the
+game logic, the **clients** only render, play sound and send input (everybody's input is merged). Only draw and sound
+calls cross the network (about 1-10 KB/s per player), never video or audio. Start `butterscotch` without arguments for the
+launcher (auto-detects your games, or type a path), or use `--server <data.win>` / `--connect <host[:port]>`.
+See [src/net/README.md](src/net/README.md) for details.
 
 ## Supported Platforms
 

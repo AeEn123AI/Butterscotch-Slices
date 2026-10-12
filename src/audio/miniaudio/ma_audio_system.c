@@ -41,6 +41,8 @@
 #include "string_compat.h"
 #include "stb_ds.h"
 
+bool gMaAudioNullDevice = false;
+
 // ===[ Helpers ]===
 
 static SoundInstance* findFreeSlot(MaAudioSystem* ma) {
@@ -118,7 +120,15 @@ static void maInit(AudioSystem* audio, DataWin* dataWin, FileSystem* fileSystem)
     deviceConfig.periodSizeInMilliseconds = 10;
     deviceConfig.dataCallback = ma_engine_data_callback_internal;
     deviceConfig.pUserData    = &ma->engine;
-    ma_result deviceResult = ma_device_init(NULL, &deviceConfig, &ma->device);
+    ma_context* deviceContext = NULL;
+    if (gMaAudioNullDevice) {
+        ma_backend nullBackend = ma_backend_null;
+        if (ma_context_init(&nullBackend, 1, NULL, &ma->context) == MA_SUCCESS) {
+            ma->hasContext = true;
+            deviceContext = &ma->context;
+        }
+    }
+    ma_result deviceResult = ma_device_init(deviceContext, &deviceConfig, &ma->device);
     if (deviceResult != MA_SUCCESS) {
         logError("Audio: Failed to initialize playback device (error %d)\n", deviceResult);
         return;
@@ -183,6 +193,7 @@ static void maDestroy(AudioSystem* audio) {
 
     ma_device_uninit(&ma->device);
     ma_engine_uninit(&ma->engine);
+    if (ma->hasContext) ma_context_uninit(&ma->context);
     free(ma);
 }
 

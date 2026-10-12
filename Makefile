@@ -249,6 +249,19 @@ LIBS += -lopenal
 endif
 endif
 
+# Client/server multiplayer + launcher (not available for the headless noop backend, nor when compiling C as C++ with very old compilers)
+ifeq ($(CC_IS_CXX),1)
+DISABLE_NETPLAY := 1
+endif
+ifneq ($(BACKEND),noop)
+ifndef DISABLE_NETPLAY
+DEFINES += $(DEFINE)ENABLE_NETPLAY
+SRCS += $(wildcard src/net/*.c)
+INCLUDES += $(INC)src/net
+HEADERS += $(wildcard src/net/*.h) $(wildcard src/net/*.inc)
+endif
+endif
+
 ifdef ENABLE_GLAD
 SRCS += vendor/glad/src/glad.c
 INCLUDES += $(INC)vendor/glad/include
@@ -256,11 +269,11 @@ endif
 
 ifeq ($(OS),Windows)
 ifeq ($(SYNTAX),msvc)
-LIBS += winmm.lib
+LIBS += winmm.lib ws2_32.lib
 DEFINES += $(DEFINE)_CRT_SECURE_NO_WARNINGS $(DEFINE)_CRT_SECURE_NO_DEPRECATE
 else
 LIBS += -static
-LIBS += -lwinmm
+LIBS += -lwinmm -lws2_32
 endif
 DEFINES += $(DEFINE)WIN32_LEAN_AND_MEAN
 else

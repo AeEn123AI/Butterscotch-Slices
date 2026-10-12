@@ -61,6 +61,8 @@ typedef struct RunnerKeyboardState {
     char lastChar[2];                // Last character pressed (for keyboard_char variable)
     char string[1024];               // Accumulated string from keyboard_string variable
     int32_t stringLen;
+    uint32_t charQueue[32];          // characters typed since the last beginFrame (used by the network client to forward text input)
+    int32_t charQueueLen;
 } RunnerKeyboardState;
 
 // Lifecycle

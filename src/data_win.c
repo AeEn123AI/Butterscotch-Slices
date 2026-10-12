@@ -3073,7 +3073,13 @@ DataWin* DataWin_parse(const char* filePath, DataWinParserOptions options) {
                 dropMappedRange(dw->mappedFile, chunkDataStart, chunkLength);
             }
         } else {
-            logInfo("Unknown chunk: %.4s (length %u at offset 0x%zX)\n", chunkName, chunkLength, chunkDataStart - 8);
+            static const char* const knownChunks[] = { "GEN8", "OPTN", "LANG", "EXTN", "SOND", "AGRP", "SPRT", "BGND", "PATH", "SCPT", "GLOB", "SHDR", "FONT", "TMLN", "OBJT", "ROOM", "TPAG", "CODE", "VARI", "FUNC", "STRG", "TXTR", "AUDO" };
+            bool deliberatelySkipped = false;
+            repeat(sizeof(knownChunks) / sizeof(knownChunks[0]), ki) {
+                if (memcmp(chunkName, knownChunks[ki], 4) == 0) { deliberatelySkipped = true; break; }
+            }
+            if (!deliberatelySkipped)
+                logInfo("Unknown chunk: %.4s (length %u at offset 0x%zX)\n", chunkName, chunkLength, chunkDataStart - 8);
         }
 
         if (dw->mappedFile && chunkLength > 0) {

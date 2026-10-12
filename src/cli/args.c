@@ -93,6 +93,22 @@ static void printUsage(const char *argv0) {
 #ifdef ENABLE_VM_OPCODE_PROFILER
         "    --profile-opcodes                      - Rank which GML opcodes were executed the most\n"
 #endif
+#ifdef ENABLE_NETPLAY
+        "\n"
+        "Multiplayer (server runs the game, clients render and send input; run with no arguments for the launcher):\n"
+        "    --server                               - Host the game: run all game logic and stream it to clients\n"
+        "    --connect <host[:port]>                - Join a server (the data.win argument is optional: a matching local copy is auto-detected)\n"
+        "    --port <port>                          - Server: TCP port to listen on (default 7777; 0 picks a free one)\n"
+        "    --bind <address>                       - Server: address to listen on (default: all interfaces)\n"
+        "    --name <name>                          - Client: player name shown in the server log\n"
+        "    --max-clients <n>                      - Server: maximum number of clients (default 16)\n"
+        "    --run-without-clients                  - Server: keep simulating when nobody is connected (default: freeze)\n"
+        "    --port-file <file>                     - Server: write the listening port to this file\n"
+        "    --net-max-lag <ms>                     - Server: disconnect clients that fall this far behind (default 3000, 0 = never)\n"
+        "    --net-sim-latency <ms>                 - Testing: delay everything this endpoint sends by this many ms (RTT = 2x if both sides set it)\n"
+        "    --net-sim-jitter <ms>                  - Testing: add up to this much random extra delay\n"
+        "    --net-sim-bandwidth <kbps>             - Testing: limit this endpoint's outgoing bandwidth\n"
+#endif
         , argv0
     );
 }
@@ -164,6 +180,25 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
         {"load-type", required_argument, nullptr, 999},
         {"disable-log-colours", no_argument, nullptr, 1003},
         {"disable-log-colors", no_argument, nullptr, 1003},
+#ifdef ENABLE_NETPLAY
+        {"server", no_argument, nullptr, 2000},
+        {"connect", required_argument, nullptr, 2001},
+        {"port", required_argument, nullptr, 2002},
+        {"bind", required_argument, nullptr, 2003},
+        {"name", required_argument, nullptr, 2004},
+        {"max-clients", required_argument, nullptr, 2005},
+        {"run-without-clients", no_argument, nullptr, 2006},
+        {"port-file", required_argument, nullptr, 2007},
+        {"net-max-lag", required_argument, nullptr, 2011},
+#ifdef ENABLE_NET_FUZZ
+        {"net-fuzz-decoder", required_argument, nullptr, 2020},
+        {"net-fuzz-iterations", required_argument, nullptr, 2021},
+        {"net-fuzz-seed", required_argument, nullptr, 2022},
+#endif
+        {"net-sim-latency", required_argument, nullptr, 2008},
+        {"net-sim-jitter", required_argument, nullptr, 2009},
+        {"net-sim-bandwidth", required_argument, nullptr, 2010},
+#endif
 #ifdef ENABLE_VM_OPCODE_PROFILER
         {"profile-opcodes", no_argument, nullptr, 'Q'},
 #endif
@@ -513,12 +548,44 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
             case 1003:
                 args->disableLogColours = true;
                 break;
+#ifdef ENABLE_NETPLAY
+            case 2000: args->netMode = NET_MODE_SERVER; break;
+            case 2001: args->netMode = NET_MODE_CLIENT; args->netConnect = optarg; break;
+            case 2002: {
+                char* endPtr;
+                long v = strtol(optarg, &endPtr, 10);
+                if (*endPtr != '\0' || v < 0 || v > 65535) { logError("Invalid --port '%s'\n", optarg); exit(1); }
+                args->netPort = (int) v;
+                args->netPortSet = true;
+                break;
+            }
+            case 2003: args->netBind = optarg; break;
+            case 2004: args->netName = optarg; break;
+            case 2005: args->netMaxClients = atoi(optarg); break;
+            case 2006: args->netRunWhenEmpty = true; break;
+            case 2007: args->netPortFile = optarg; break;
+            case 2008: args->netSimLatencyMs = atoi(optarg); break;
+            case 2011: args->netMaxLagMs = atoi(optarg); args->netMaxLagSet = true; break;
+#ifdef ENABLE_NET_FUZZ
+            case 2020: args->netFuzzCorpus = optarg; break;
+            case 2021: args->netFuzzIterations = atoi(optarg); break;
+            case 2022: args->netFuzzSeed = atoi(optarg); break;
+#endif
+            case 2009: args->netSimJitterMs = atoi(optarg); break;
+            case 2010: args->netSimBandwidthKbps = atoi(optarg); break;
+#endif
             default:
                 printUsage(argv[0]);
                 exit(1);
         }
     }
 
+#ifdef ENABLE_NETPLAY
+    if (args->netMode == NET_MODE_CLIENT && optind >= argc) {
+        // The client finds its local copy of the game by itself (see net_client.c)
+        args->dataWinPath = nullptr;
+    } else
+#endif
     if (optind >= argc) {
         const char* defaultDataWinPaths[4] = {"data.win", "assets/game.unx", "assets/game.droid", "../Resources/game.ios"}; // default WAD paths for Windows/Linux/Android/macOS
         static char resolvedPath[2048];
@@ -552,6 +619,11 @@ void parseCommandLineArgs(CommandLineArgs* args, int argc, char* argv[]) {
         logError("--screenshot-surfaces-at-frame requires --screenshot-surfaces to be set\n");
         exit(1);
     }
+#endif
+
+#ifdef ENABLE_NETPLAY
+    if (args->netMode == NET_MODE_SERVER && args->netPort == 0 && !args->netPortSet) args->netPort = 7777;
+    if (!args->netMaxLagSet) args->netMaxLagMs = 3000;
 #endif
 
     if (args->headless && args->speedMultiplier != 1.0) {
